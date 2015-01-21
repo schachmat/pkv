@@ -1,0 +1,71 @@
+#! /bin/sh
+
+umask 077
+
+pkv_home="$HOME/.pkv"
+hmac_key="$pkv_home/hmac_key.gpg"
+gnupg_cmd="$(which gpg) --homedir $pkv_home/gpg"
+dmenu_cmd="$(which dmenu) -i -l 10 -nb #440000"
+
+get_keylist () {
+	</dev/null $gnupg_cmd -d "$pkv_home/keylist"
+}
+
+# Let the user select a key from the store and print it's filename
+get_key_fname () {
+	echo "$1" |
+	$dmenu_cmd -p "Select Key:" |
+	openssl sha512 -hex -hmac "$(</dev/null $gnupg_cmd -d "$hmac_key")" |
+	cut -d' ' -f2
+}
+
+# Generates a new hmac_key. Take care to extract the mapping of the previous key
+# beforehand
+gen_new_hmac_key () {
+	dd bs=64 count=1 if=/dev/random 2>/dev/null |
+	base64 -w 0 |
+	$gnupg_cmd -e -a >"$hmac_key"
+}
+
+read_value () {
+	</dev/null $gnupg_cmd -d "$pkv_home/keys/$1"
+}
+
+get_value () {
+	</dev/null $gnupg_cmd -d "$pkv_home/keys/$(
+	</dev/null $gnupg_cmd -d "$pkv_home/keylist" |
+	$dmenu_cmd -p "Select Key:" |
+	openssl sha512 -hex -hmac "$(</dev/null $gnupg_cmd -d "$hmac_key")" |
+	cut -d' ' -f2)"
+}
+
+edit_value () {
+	local keylist="$(get_keylist)"
+	local fname="$(get_key_fname "$keylist")"
+#	echo editing keyfile "$fname"
+	local oldval="$(read_value $fname)"
+	echo "$oldval" |
+	$dmenu_cmd -p "New Value:" |
+	$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
+	# insert new key to /keylist
+	(echo new; cat old) | sort | uniq
+}
+
+# add the key to gpg-agent's cache to avoid issues in the following pipelines
+</dev/null &>/dev/null $gnupg_cmd -d "$pkv_home/keylist"
+
+case $1 in
+	"edit")
+		edit_value
+		;;
+	"get")
+		get_value
+		;;
+	*)
+		echo fail
+		exit 1
+		;;
+esac
+
+#gen_new_hmac_key
+#edit_value
