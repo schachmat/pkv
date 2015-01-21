@@ -40,15 +40,21 @@ get_value () {
 }
 
 edit_value () {
-	local keylist="$(get_keylist)"
-	local fname="$(get_key_fname "$keylist")"
+	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
+	local fname="$(
+	echo "$keylist" |
+	$dmenu_cmd -p "Select Key:" |
+	openssl sha512 -hex -hmac "$(</dev/null $gnupg_cmd -d "$hmac_key")" |
+	cut -d' ' -f2)"
 #	echo editing keyfile "$fname"
-	local oldval="$(read_value $fname)"
+	local oldval="$(</dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
+
 	echo "$oldval" |
 	$dmenu_cmd -p "New Value:" |
 	$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
+
 	# insert new key to /keylist
-	(echo new; cat old) | sort | uniq
+#	(echo new; cat old) | sort | uniq
 }
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
