@@ -49,12 +49,14 @@ edit_value () {
 #	echo editing keyfile "$fname"
 	local oldval="$(</dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
 
+	local newval="$(
 	echo "$oldval" |
-	$dmenu_cmd -p "New Value:" |
+	$dmenu_cmd -p "New Value:")"
+	echo "$newval" |
 	$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
 
 	# insert new key to /keylist
-#	(echo new; cat old) | sort | uniq
+	echo -e -n "$fname\n$keylist" # | sort | uniq
 }
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
