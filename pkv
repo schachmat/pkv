@@ -3,7 +3,6 @@
 umask 077
 
 pkv_home="$HOME/.pkv"
-hmac_key="$pkv_home/hmac_key.gpg"
 gnupg_cmd="$(which gpg) --homedir $pkv_home/gpg"
 dmenu_cmd="$(which dmenu) -i -l 10 -nb #440000"
 
@@ -12,12 +11,12 @@ dmenu_cmd="$(which dmenu) -i -l 10 -nb #440000"
 gen_new_hmac_key () {
 	dd bs=64 count=1 if=/dev/random 2>/dev/null |
 		base64 -w 0 |
-		$gnupg_cmd -e -a >"$hmac_key"
+		$gnupg_cmd -e -a >"$pkv_home/hmac_key.gpg"
 }
 
 get_value () {
 	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
-	local hmackey="$(</dev/null $gnupg_cmd -d "$hmac_key")"
+	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
 	local fname="$(
 		</dev/null $gnupg_cmd -d "$pkv_home/keylist" |
 		$dmenu_cmd -p "Select Key:" |
@@ -29,7 +28,7 @@ get_value () {
 
 edit_value () {
 	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
-	local hmackey="$(</dev/null $gnupg_cmd -d "$hmac_key")"
+	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
 	local key="$(echo "$keylist" |
 		$dmenu_cmd -p "Select Key:")"
 	local fname="$(echo "$key" |
