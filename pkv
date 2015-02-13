@@ -49,6 +49,8 @@ edit_value () {
 }
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
+# this unfortunately is racy, because the cache could be invalidated right after
+# the following command. $gnupg_cmd should only be called once per pipeline.
 </dev/null &>/dev/null $gnupg_cmd -d "$pkv_home/keylist"
 
 case $1 in
