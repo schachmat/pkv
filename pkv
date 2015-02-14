@@ -38,13 +38,24 @@ edit_value () {
 
 	local newval="$(echo "$oldval" |
 		$dmenu_cmd -p "New Value:")"
-	echo "$newval" |
-		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
 
-	# insert new key to /keylist
-	echo -e -n "$key\n$keylist" |
-		sort -u |
-		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
+	if [ -z "$newval" ]; then
+		&>/dev/null rm "$pkv_home/keys/$fname"
+
+		# remove key from keylist
+		echo -e -n "$keylist" |
+			sort -u |
+			grep -v -F -x -e "$key" |
+			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
+	else
+		echo "$newval" |
+			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
+
+		# insert new key to /keylist
+		echo -e -n "$key\n$keylist" |
+			sort -u |
+			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
+	fi
 }
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
