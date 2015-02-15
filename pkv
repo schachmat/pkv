@@ -15,35 +15,50 @@ gen_new_hmac_key () {
 }
 
 get_value () {
-	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
 	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
-	local fname="$(
-		</dev/null $gnupg_cmd -d "$pkv_home/keylist" |
-		$dmenu_cmd -p "Select Key:" |
-		openssl sha512 -hex -hmac "$hmackey" |
-		cut -d' ' -f2)"
 
-	</dev/null $gnupg_cmd -d "$pkv_home/keys/$fname"
-}
-
-edit_value () {
-	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
-	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
-	local key="$(echo "$keylist" |
+	local key
+	key="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist" |
 		$dmenu_cmd -p "Select Key:")"
+	if [ "$?" = "1" ]; then
+		exit 1;
+	fi
+
 	local fname="$(echo "$key" |
 		openssl sha512 -hex -hmac "$hmackey" |
 		cut -d' ' -f2)"
-	local oldval="$(</dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
 
-	local newval="$(echo "$oldval" |
+	</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keys/$fname"
+}
+
+edit_value () {
+	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
+
+	local key
+	key="$(echo -n "$keylist" |
+		$dmenu_cmd -p "Select Key:")"
+	if [ "$?" = "1" ]; then
+		exit 1
+	fi
+
+	local fname="$(echo "$key" |
+		openssl sha512 -hex -hmac "$hmackey" |
+		cut -d' ' -f2)"
+	local oldval="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
+
+	local newval
+	newval="$(echo "$oldval" |
 		$dmenu_cmd -p "New Value:")"
+	if [ "$?" = "1" ]; then
+		exit 1
+	fi
 
 	if [ -z "$newval" ]; then
 		&>/dev/null rm "$pkv_home/keys/$fname"
 
 		# remove key from keylist
-		echo -e -n "$keylist" |
+		echo -n "$keylist" |
 			sort -u |
 			grep -v -F -x -e "$key" |
 			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
