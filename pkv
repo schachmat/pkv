@@ -28,7 +28,14 @@ get_value () {
 		openssl sha512 -hex -hmac "$hmackey" |
 		cut -d' ' -f2)"
 
-	</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keys/$fname"
+	local val="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
+	local uname="${val%% *}"
+	local passw="${val#* }"
+	echo -n "$uname" | xclip
+	sleep 3s
+	echo -n "$passw" | xclip
+	sleep 3s
+	echo -n "" | xclip
 }
 
 edit_value () {
@@ -79,11 +86,11 @@ edit_value () {
 </dev/null &>/dev/null $gnupg_cmd -d "$pkv_home/keylist"
 
 case $1 in
-	"edit")
-		edit_value
-		;;
 	"get")
 		get_value
+		;;
+	"edit")
+		edit_value
 		;;
 	*)
 		echo fail
