@@ -6,16 +6,32 @@ pkv_home="$HOME/.pkv"
 gnupg_cmd="$(which gpg) --homedir $pkv_home/gpg"
 dmenu_cmd="$(which dmenu) -i -l 10 -nb #440000"
 
-# Generates a new hmac_key. Take care to extract the mapping of the previous key
-# beforehand
+# Generates a new hmac_key and move all values accordingly.
+# ATTENTION: This does not yet reencrypt the values so passive watchers can
+# correlate old and new filenames by comparing the contents of the files.
 gen_new_hmac_key () {
-	dd bs=64 count=1 if=/dev/random 2>/dev/null |
-		base64 -w 0 |
-		$gnupg_cmd -e -a >"$pkv_home/hmac_key.gpg"
+	local oldhmac="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local newhmac="$(dd bs=64 count=1 if=/dev/random 2>/dev/null |
+		base64 -w 0)"
+
+	</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist" | while read key
+	do
+		local oldf="$(echo -n "$key" |
+			openssl sha512 -hex -hmac "$oldhmac" |
+			cut -d' ' -f2)"
+
+		local newf="$(echo -n "$key" |
+			openssl sha512 -hex -hmac "$newhmac" |
+			cut -d' ' -f2)"
+
+		mv "$pkv_home/keys/$oldf" "$pkv_home/keys/$newf"
+	done
+
+	echo -n "$newhmac" | $gnupg_cmd -e -a >"$pkv_home/hmac_key.gpg"
 }
 
 get_value () {
-	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
 
 	local key
 	key="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist" |
@@ -24,7 +40,7 @@ get_value () {
 		exit 1;
 	fi
 
-	local fname="$(echo "$key" |
+	local fname="$(echo -n "$key" |
 		openssl sha512 -hex -hmac "$hmackey" |
 		cut -d' ' -f2)"
 
@@ -39,8 +55,8 @@ get_value () {
 }
 
 edit_value () {
-	local hmackey="$(</dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
-	local keylist="$(</dev/null $gnupg_cmd -d "$pkv_home/keylist")"
+	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local keylist="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist")"
 
 	local key
 	key="$(echo -n "$keylist" |
@@ -49,7 +65,7 @@ edit_value () {
 		exit 1
 	fi
 
-	local fname="$(echo "$key" |
+	local fname="$(echo -n "$key" |
 		openssl sha512 -hex -hmac "$hmackey" |
 		cut -d' ' -f2)"
 	local oldval="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
@@ -91,6 +107,9 @@ case $1 in
 		;;
 	"edit")
 		edit_value
+		;;
+	"rekey2")
+		gen_new_hmac_key
 		;;
 	*)
 		echo fail
