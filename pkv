@@ -14,6 +14,9 @@ gen_new_hmac_key () {
 	local newhmac="$(dd bs=64 count=1 if=/dev/random 2>/dev/null |
 		base64 -w 0)"
 
+	# save new hmac key to temporary file in case something breaks in the loop
+	echo -n "$newhmac" | $gnupg_cmd -e -a >"$pkv_home/hmac_key.gpg.new"
+
 	</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist" | while read key
 	do
 		local oldf="$(echo -n "$key" |
@@ -27,9 +30,15 @@ gen_new_hmac_key () {
 		mv "$pkv_home/keys/$oldf" "$pkv_home/keys/$newf"
 	done
 
-	echo -n "$newhmac" | $gnupg_cmd -e -a >"$pkv_home/hmac_key.gpg"
+	# we're done migrating, overwrite the old hmac key file with the new one.
+	mv "$pkv_home/hmac_key.gpg.new" "$pkv_home/hmac_key.gpg"
 }
 
+# retrive a value and interpret it as a "username password" pair. The first ' '
+# separates the two tokens, so "hi  there world" would have "hi" as username and
+# " there world" as password. The username is copied to the primary
+# selection for 3 seconds, then the password is copied to the primary selection
+# for 3 seconds, then the primary selection is cleared.
 get_value () {
 	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
 
@@ -54,6 +63,11 @@ get_value () {
 	echo -n "" | xclip
 }
 
+# edit a key value pair in the storage. You can do one of:
+# - add a new key: just enter a nonexistent key and assign a value to it.
+# - edit an existing key: select the existing key and change the value.
+# - remove an existing key: select the existing key and enter a value of ""
+#   (shift+return in dmenu)
 edit_value () {
 	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
 	local keylist="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist")"
@@ -71,7 +85,7 @@ edit_value () {
 	local oldval="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keys/$fname")"
 
 	local newval
-	newval="$(echo "$oldval" |
+	newval="$(echo -n "$oldval" |
 		$dmenu_cmd -p "New Value:")"
 	if [ "$?" = "1" ]; then
 		exit 1
@@ -86,15 +100,16 @@ edit_value () {
 			grep -v -F -x -e "$key" |
 			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
 	else
-		echo "$newval" |
+		echo -n "$newval" |
 			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
 
 		# insert new key to /keylist
-		echo -e -n "$key\n$keylist" |
+		(echo "$key"; echo -n "$keylist") |
 			sort -u |
 			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
 	fi
 }
+
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
 # this unfortunately is racy, because the cache could be invalidated right after
@@ -112,7 +127,7 @@ case $1 in
 		gen_new_hmac_key
 		;;
 	*)
-		echo fail
+		echo fail >&2
 		exit 1
 		;;
 esac
