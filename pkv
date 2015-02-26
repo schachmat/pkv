@@ -110,6 +110,44 @@ edit_value () {
 	fi
 }
 
+move_key () {
+	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local keylist="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist")"
+
+	local oldkey
+	oldkey="$(echo -n "$keylist" |
+		$dmenu_cmd -p "Select Key:")"
+	if [ "$?" = "1" ]; then
+		exit 1
+	fi
+
+	local newkey
+	newkey="$(echo -n "$keylist" |
+		$dmenu_cmd -p "Move \"${oldkey}\" to Key:")"
+	if [ "$?" = "1" ]; then
+		exit 1
+	fi
+
+	local oldname="$(echo -n "$oldkey" |
+		openssl sha512 -hex -hmac "$hmackey" |
+		cut -d' ' -f2)"
+
+	local newname="$(echo -n "$newkey" |
+		openssl sha512 -hex -hmac "$hmackey" |
+		cut -d' ' -f2)"
+
+	&>/dev/null cp "$pkv_home/keys/$oldname" "$pkv_home/keys/$newname" || (echo "Could not copy value file"; exit 1)
+
+	# remove oldkey from keylist
+	(echo "$newkey"; echo -n "$keylist" |
+		sort -u |
+		grep -v -F -x -e "$oldkey") |
+		sort -u |
+		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
+
+	&>/dev/null rm "$pkv_home/keys/$oldname"
+}
+
 # generate a new password value
 gen_new_pw_value () {
 	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
@@ -149,6 +187,9 @@ case $1 in
 		;;
 	"edit")
 		edit_value
+		;;
+	"move")
+		move_key
 		;;
 	"genpw")
 		gen_new_pw_value
