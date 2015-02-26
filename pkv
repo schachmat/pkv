@@ -110,6 +110,33 @@ edit_value () {
 	fi
 }
 
+# generate a new password value
+gen_new_pw_value () {
+	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local keylist="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist")"
+
+	local key
+	key="$(echo -n "$keylist" |
+		$dmenu_cmd -p "Select Key:")"
+	if [ "$?" = "1" ]; then
+		exit 1
+	fi
+
+	local fname="$(echo -n "$key" |
+		openssl sha512 -hex -hmac "$hmackey" |
+		cut -d' ' -f2)"
+
+	# generate new random password string of length 40
+	dd bs=30 count=1 if=/dev/random 2>/dev/null |
+		base64 -w 0 |
+		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keys/$fname"
+
+	# insert new key to /keylist
+	(echo "$key"; echo -n "$keylist") |
+		sort -u |
+		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
+}
+
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
 # this unfortunately is racy, because the cache could be invalidated right after
@@ -122,6 +149,9 @@ case $1 in
 		;;
 	"edit")
 		edit_value
+		;;
+	"genpw")
+		gen_new_pw_value
 		;;
 	"rekey2")
 		gen_new_hmac_key
