@@ -175,6 +175,18 @@ gen_new_pw_value () {
 		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
 }
 
+if [ "$#" -lt "1" ]; then
+	echo -e "Usage:
+	pkv COMMAND [ARGS]
+
+COMMAND may be one of:
+	get      select key and copy it's value into the X selection
+	edit     add/change/remove a key value pair
+	move     rename a key (overwrites per default)
+	genpw    change/add a key with a randomly generated password string as value
+	rekey2   migrate storage to new internal key" 1>&2
+	exit 1
+fi
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
 # this unfortunately is racy, because the cache could be invalidated right after
