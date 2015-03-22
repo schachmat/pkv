@@ -175,17 +175,32 @@ gen_new_pw_value () {
 		$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
 }
 
-if [ "$#" -lt "1" ]; then
+import_plain () {
+	echo "importing plain text data from keylist $1" 1>&2
+
+	cat "$1" | while read key
+	do
+		#TODO: import key (cd to $1 directory first?)
+		echo "$key"
+	done
+}
+
+usage () {
 	echo -e "Usage:
 	pkv COMMAND [ARGS]
 
 COMMAND may be one of:
-	get      select key and copy it's value into the X selection
-	edit     add/change/remove a key value pair
-	move     rename a key (overwrites per default)
-	genpw    change/add a key with a randomly generated password string as value
-	rekey2   migrate storage to new internal key" 1>&2
+	get          select key and copy it's value into the X selection
+	edit         add/change/remove a key value pair
+	move         rename a key (overwrites per default)
+	genpw        change/add a key with a randomly generated password string as value
+	rekey2       migrate storage to new internal key
+	plainimport  import plain text key value storage from keylist ARG1" 1>&2
 	exit 1
+}
+
+if [ "$#" -lt "1" ]; then
+	usage
 fi
 
 # add the key to gpg-agent's cache to avoid issues in the following pipelines
@@ -193,7 +208,7 @@ fi
 # the following command. $gnupg_cmd should only be called once per pipeline.
 </dev/null &>/dev/null $gnupg_cmd -d "$pkv_home/keylist"
 
-case $1 in
+case "$1" in
 	"get")
 		get_value
 		;;
@@ -208,6 +223,12 @@ case $1 in
 		;;
 	"rekey2")
 		gen_new_hmac_key
+		;;
+	"plainimport")
+		if [ "$#" -lt "2" ]; then
+			usage
+		fi
+		import_plain "$2"
 		;;
 	*)
 		echo fail >&2
