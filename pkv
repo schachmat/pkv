@@ -177,11 +177,24 @@ gen_new_pw_value () {
 
 import_plain () {
 	echo "importing plain text data from keylist $1" 1>&2
+	local hmackey="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/hmac_key.gpg")"
+	local dir="$(dirname "$1")"
 
 	cat "$1" | while read key
 	do
-		#TODO: import key (cd to $1 directory first?)
-		echo "$key"
+		echo "${dir}/keys/${key}"
+
+		local fname="$(echo -n "$key" |
+			openssl sha512 -hex -hmac "$hmackey" |
+			cut -d' ' -f2)"
+
+		<"${dir}/keys/${key}" 2>/dev/null $gnupg_cmd -e -a >"$pkv_home/keys/$fname"
+
+		local keylist="$(</dev/null 2>/dev/null $gnupg_cmd -d "$pkv_home/keylist")"
+		# insert new key to /keylist
+		(echo "$key"; echo -n "$keylist") |
+			sort -u |
+			$gnupg_cmd 2>/dev/null -e -a >"$pkv_home/keylist"
 	done
 }
 
@@ -195,7 +208,8 @@ COMMAND may be one of:
 	move         rename a key (overwrites per default)
 	genpw        change/add a key with a randomly generated password string as value
 	rekey2       migrate storage to new internal key
-	plainimport  import plain text key value storage from keylist ARG1" 1>&2
+	plainimport  import plain text key value storage from keylist ARG1.
+	             BEWARE: This may overwrite already existing keys without confirmation!" 1>&2
 	exit 1
 }
 
